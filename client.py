@@ -2,10 +2,14 @@
 Script for client side
 @author: hao
 '''
+from tqdm import tqdm, trange
+from time import sleep
 import protocol
 import config
 from socket import *
 import os
+from os.path import isfile, join
+
 
 class client:
     
@@ -13,10 +17,11 @@ class client:
     uploadList=[] # list to store uploadable files
     #Constructor: load client configuration from config file
     def __init__(self):
-        self.serverName, self.serverPort, self.clientPort, self.downloadPath = config.config().readClientConfig()
+        self.serverName, self.serverPort, self.clientPort, self.downloadPath, self.uploadPath = config.config().readClientConfig()
 
     # Function to produce user menu 
     def printMenu(self):
+        print("--------------------------------------")        
         print("Welcome to S L I M E W I R E!")
         print("Please select operations from menu")
         print("--------------------------------------")
@@ -70,13 +75,18 @@ class client:
         mySocket.send(protocol.prepareMsg(protocol.HEAD_REQUEST," "))
         header, msg=protocol.decodeMsg(mySocket.recv(1024).decode())
         mySocket.close()
-        if(header==protocol.HEAD_LIST): 
-            files=msg.split(",")
-            self.uploadList=[]
-            for f in files:
-                self.uploadList.append(f)
-        else:
-            print ("Error: cannot get file list!")
+        filesInUploadList = [f for f in os.listdir(self.uploadPath) if isfile(join(self.uploadPath, f))]
+        self.uploadList=[]        
+        for f in filesInUploadList:
+            self.uploadList.append(f)
+        
+        #if(header==protocol.HEAD_LIST): 
+            #files=msg.split(",")
+            #self.uploadList=[]
+            #for f in files:
+                #self.uploadList.append(f)
+        #else:
+            #print ("Error: cannot get file list!")
 
     # function to print files in the list with the file number
     def printFileList(self):
@@ -112,32 +122,37 @@ class client:
             print("Invalid number")
 
     def selectUploadFile(self):
-        if(len(self.fileList)==0):
-            self.getFileList()
+        if(len(self.uploadList)==0):
+            self.getUploadableFileList()
         ans=-1
-        while ans<0 or ans>len(self.fileList)+1:
+        while ans<0 or ans>len(self.uploadList)+1:
             self.printUploadableFileList()
             print("Please select the file you want to upload from the list (enter the number for file):")
             try:
                 ans=int(input())
             except:
                 ans=-1
-            if (ans>0) and (ans<len(self.fileList)+1):
-                return self.fileList[ans-1]
+            if (ans>0) and (ans<len(self.uploadList)+1):
+                return self.uploadList[ans-1]
             print("Invalid number")
 
     def getClientFileList(self):
-        print(os.listdir(self.downloadPath))
-        return os.listdir(self.downloadPath)
+        print(os.listdir(self.uploadPath))
+        return os.listdir(self.uploadPath)
     
     def uploadFile(self,fileName):
         mySocket=self.connect()
         mySocket.send(protocol.prepareMsg(protocol.HEAD_UPLOAD, fileName))
-        with open(self.downloadPath+"/"+fileName, 'wb') as f:
+        with open(self.uploadPath+"/"+fileName, 'wb') as f:
             print ('file opened')
             while True:
-                #print('receiving data...')
+                #print('uploading data...')
+                bar = trange(1)                
                 data = mySocket.recv(1024)
+                for i in bar:
+                    sleep(0.5)
+                    if not (i):
+                        tqdm.write("Uploading file %s" % fileName)                
                 #print('data=%s', (data))
                 if not data:
                     break
@@ -156,7 +171,12 @@ class client:
             print ('file opened')
             while True:
                 #print('receiving data...')
+                bar = trange(1)
                 data = mySocket.recv(1024)
+                for i in bar:
+                    sleep(0.5)
+                    if not (i):
+                        tqdm.write("Downloading file %s" % fileName)
                 #print('data=%s', (data))
                 if not data:
                     break
